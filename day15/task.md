@@ -25,3 +25,9 @@ MetricsBuffer:
 - 内部不发生 copy / move MetricsBuffer
 - 使用方式 工程上合理
 - 代码能编译
+
+
+## Lessons:
+“不能 move” ≠ “不能用”
+indirection, ownership, address stability
+std::unique_ptr 在类型系统中表达“唯一所有权”
