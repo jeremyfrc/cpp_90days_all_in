@@ -36,8 +36,10 @@ C++ 标准要求
 mkdir build
 cd build
 cmake ..
+cmake .. -G "MinGW Makefiles"
 cmake --build .
 build\Debug\kvstore_example.exe
+./example.exe
 ```
 
 ## build 下的文件介绍:
