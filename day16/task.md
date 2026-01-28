@@ -111,3 +111,68 @@ Handle 做了三件事：
   - OS object handle
 
 
+## 函数引用返回必出Bug的点：
+1. 悬空引用： 引用内容已被销毁，但是用户仍然要访问
+2. 并发remove/clear， 两个线程一个access,一个remove
+3. 容器扩容，reallocate
+4. 锁生命周期断裂，因为返回之后，就不带锁了，如果并发读写，那必炸
+5. 用户持有引用时间过长 --> 透支未来的控制权
+当 Registry 内部资源可能被移除、移动、扩容或并发修改时，引用无法保证有效性和同步性，最终导致悬空引用或数据竞争。
+
+handle + with在工程上叫做Scoped Access（作用域访问）。
+在文件系统，GPU资源，数据库连接，并发容器这些场景都会用到这种设计模式。
+
+## 练习
+
+要求只有三条：
+- create() 返回 Handle
+- with(handle, fn) 内部加锁
+- 用户永远拿不到引用存活到作用域外
+
+代码骨架：
+```
+class SafeRegistry {
+public:
+    struct Handle { size_t id; };
+
+    Handle create();
+
+    template<typename F>
+    void with(Handle h, F&& fn);
+
+private:
+    std::mutex m_;
+    std::unordered_map<size_t, MetricsBuffer> data_;
+    size_t next_id_ = 0;
+};
+```
+
+你只需要补完：
+- create()
+- with()
+- 不需要 remove，不需要 valid flag。
+
+### Note:
+1. try_emplace 的意义：
+直接在 map 内部原地构造
+避免临时对象
+工程上这是惯用法。
+
+2. fn 是用户提供的，可能非常慢，甚至可能死锁
+
+Q 为什么这个SafeRegistry没有解决“锁内执行用户代码可能死锁”的问题
+A Registry 无法控制 fn 会做什么
+
+### 最典型死锁：
+- 递归调用 with()
+- 最典型死锁：递归调用 with()
+- 锁顺序反转
+锁内执行用户回调，是一种“强安全 + 弱可控”的设计
+它避免悬空引用，但引入死锁与性能风险。
+
+#### 所以真实系统会进一步演化出：
+- 分层锁
+- 更细粒度锁
+- visitor 限制
+- lock-free queue
+- shared_ptr + epoch reclamation
