@@ -34,7 +34,7 @@ public:
         std::lock_guard lock(m_);
         size_t id = next_id_++;
 
-        data_[id] = Entry{MetricsBuffer(), 0, true};
+        data_.try_emplace(id, Entry{MetricsBuffer(), 0, true});
         return {id, 0};
     }
 
